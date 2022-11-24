@@ -14,37 +14,16 @@
 #include "md.h"
 #define SUCCESS 0
 #define DEVICE_NAME "char_dev"
+#define DEVICE1_NAME "char_dev1"
 #define BUF_LEN 250
 
-enum {
-    CDEV_NOT_USED = 0,
-    CDEV_EXCLUSIVE_OPEN = 1,
-};
-
-/* Открыто ли сейчас устройство? Служит для предотвращения
- * конкурентного доступа к одному устройству.
- */
-static atomic_t already_open = ATOMIC_INIT(CDEV_NOT_USED);
-
 static char message[BUF_LEN];
+static char message1[BUF_LEN];
 
-static struct class *cls;
+static struct class *cls_dm_io;
+static struct class *cls_tmt;
 
-static int device_open(struct inode *inode, struct file *file) {
-    pr_info("device_open(%p)\n", file);
-
-    try_module_get(THIS_MODULE);
-    return SUCCESS;
-}
-
-static int device_release(struct inode *inode, struct file *file) {
-    pr_info("device_release(%p,%p)\n", inode, file);
-
-    module_put(THIS_MODULE);
-    return SUCCESS;
-}
-
-static ssize_t device_read(struct file *file,
+static ssize_t device_read_dm_io(struct file *file,
                            char __user *buffer,
                            size_t length,
                            loff_t *offset) {
@@ -89,11 +68,11 @@ static ssize_t device_read(struct file *file,
     return bytes_read + 1;
 }
 
-static ssize_t device_write(struct file *file, const char __user *buffer,
+static ssize_t device_write_dm_io(struct file *file, const char __user *buffer,
                             size_t length, loff_t *offset) {
     int i;
 
-    pr_info("device_write(%p,%p,%ld)", file, buffer, length);
+    pr_info("device_write_dm_io(%p,%p,%ld)", file, buffer, length);
 
     for (i = 0; i < length && i < BUF_LEN; i++) {
         get_user(message[i], buffer + i);
@@ -104,91 +83,107 @@ static ssize_t device_write(struct file *file, const char __user *buffer,
     return i;
 }
 
-static long device_ioctl(struct file *file,
-             unsigned int ioctl_num,
-             unsigned long ioctl_param) {
-    int i;
-    long ret = SUCCESS;
 
-    /* Мы не хотим взаимодействовать с двумя процессами одновременно */ 
-    if (atomic_cmpxchg(&already_open, CDEV_NOT_USED, CDEV_EXCLUSIVE_OPEN)) 
-        return -EBUSY;
- 
-    /* Переключение согласно вызванной ioctl. */ 
-    switch (ioctl_num) {
-    case IOCTL_SET_MSG: {
-        /* Получение указателя на сообщение (в пользовательском  
-         * пространстве) и установка его как сообщения устройства. 
-         * Получение параметра, передаваемого ioctl процессом. 
-         */ 
-        char __user *tmp = (char __user *)ioctl_param; 
-        char ch; 
- 
-        /* Определение длины сообщения. */ 
-        get_user(ch, tmp); 
-        for (i = 0; ch && i < BUF_LEN; i++, tmp++) 
-            get_user(ch, tmp); 
- 
-        device_write(file, (char __user *)ioctl_param, i, NULL); 
-        break; 
-    } 
-    case IOCTL_GET_MSG: { 
-        loff_t offset = 0; 
- 
-        /* Передача текущего сообщения вызывающему процессу. Получаемый 
-         * параметр является указателем, который мы заполняем. 
-         */ 
-        i = device_read(file, (char __user *)ioctl_param, 99, &offset); 
- 
-        /* Помещаем в конец буфера нуль, чтобы он правильно завершился. 
-         */ 
-        put_user('\0', (char __user *)ioctl_param + i); 
-        break; 
-    } 
-    case IOCTL_GET_NTH_BYTE: 
-        /* Эта ioctl является и вводом (ioctl_param), и выводом 
-         * (возвращаемым значением этой функции). 
-         */ 
-        ret = (long)message[ioctl_param]; 
-        break; 
+////////////////////////////////////////////////////////////////////
+
+
+static ssize_t device_read_tgt(struct file *file,
+                           char __user *buffer,
+                           size_t length,
+                           loff_t *offset) {
+    static int read_status = 0;
+    if(read_status != 0) {
+        read_status = 0;
+        return 0;
     }
-
-    atomic_set(&already_open, CDEV_NOT_USED);
-
-    return ret;
+    long seeked_pid = 1;
+    kstrtol(message1, 10, &seeked_pid);
+    struct task_struct *task;
+    int found_flag = 0;
+    for_each_process(task) {
+        if(task->pid == seeked_pid) {
+            found_flag = 1;
+            break;
+        }
+    }
+    if(found_flag == 1) {
+        struct thread_group_cputimer tgt = task->signal->cputimer;
+        int t = tgt.cputime_atomic.utime;
+        const char fields_values_str[BUF_LEN];
+        const char format_answer[] = "Utime: %u\n";
+        size_t string_size = snprintf(NULL, 0, format_answer, t) + 1;
+        snprintf(fields_values_str, string_size, format_answer, t);
+        copy_to_user(buff, fields_values_str, string_size);
+        read_status = string_size;
+    }
+    else {
+        copy_to_user(buff, "Nothing found\n", 15);
+        read_status = 15;
+    }
+    return read_status;
 }
 
-static struct file_operations fops = {
-    .read = device_read,
-    .write = device_write,
-    .unlocked_ioctl = device_ioctl,
-    .open = device_open,
-    .release = device_release,
+static ssize_t device_write_tgt(struct file *file, const char __user *buffer,
+                            size_t length, loff_t *offset) {
+    int i;
+
+    pr_info("device_write_dm_io(%p,%p,%ld)", file, buffer, length);
+
+    for (i = 0; i < length && i < BUF_LEN; i++) {
+        get_user(message1[i], buffer + i);
+    }
+    char endstr = '\0';
+    get_user(message1[i], &endstr);
+
+    return i;
+}
+
+ssize_t ct_read_interface(struct file * file, char __user * buff, size_t count, loff_t * offset) {
+ // mutex here meaning of utex need to read 
+
+ 
+ 
+}
+
+
+static struct file_operations fops_dm_io = {
+    .read = device_read_dm_io,
+    .write = device_write_dm_io,
+};
+
+static struct file_operations fops_tgt = {
+    .read = device_read_tgt,
+    .write = device_write_tgt,
 };
 
 static int __init chardev2_init(void) {
-    /* Регистрация символьного устройства (попытка). */
-    int ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops); 
+    int ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops_dm_io); 
+    int ret_val1 = register_chrdev(MAJOR_NUM, DEVICE1_NAME, &fops_tgt);
 
-    if (ret_val < 0) {
-        pr_alert("%s failed with %d\n",
-                 "Sorry, registering the character device ", ret_val);
-        return ret_val;
+    if ((ret_val < 0)  || (ret_val1 < 0)) {
+        pr_alert("Sorry, registering the character device failed");
+        return 1;
     }
 
-    cls = class_create(THIS_MODULE, DEVICE_FILE_NAME);
-    device_create(cls, NULL, MKDEV(MAJOR_NUM, 0), NULL, DEVICE_FILE_NAME);
-
+    cls_dm_io = class_create(THIS_MODULE, DEVICE_FILE_NAME);
+    device_create(cls_dm_io, NULL, MKDEV(MAJOR_NUM, 0), NULL, DEVICE_FILE_NAME);
     pr_info("Device created on /dev/%s\n", DEVICE_FILE_NAME);
+
+    cls_tmt = class_create(THIS_MODULE, DEVICE_FILE1_NAME);
+    device_create(cls_tmt, NULL, MKDEV(MAJOR_NUM, 0), NULL, DEVICE_FILE1_NAME);
+    pr_info("Device created on /dev/%s\n", DEVICE_FILE1_NAME);
 
     return 0;
 }
 
 static void __exit chardev2_exit(void) {
-    device_destroy(cls, MKDEV(MAJOR_NUM, 0));
-    class_destroy(cls);
+    device_destroy(cls_dm_io, MKDEV(MAJOR_NUM, 0));
+    class_destroy(cls_dm_io);
+    device_destroy(cls_tmt, MKDEV(MAJOR_NUM, 0));
+    class_destroy(cls_tmt);
 
     unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+    unregister_chrdev(MAJOR_NUM, DEVICE1_NAME);
 }
 
 module_init(chardev2_init);
