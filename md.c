@@ -31,7 +31,9 @@ static ssize_t device_read_dm_io(struct file *file,
     static int last_was_error = 0;
     pr_info("Searching for %s", message);
     struct block_device *bd = blkdev_get_by_path(message, FMODE_READ | FMODE_WRITE, NULL);
-    if(last_was_error == 1) last_was_error = 0;
+    if(last_was_error == 1) {
+        last_was_error = 0; return 0;
+    }
     if(IS_ERR(bd)) {
 	    copy_to_user(buffer, "Nothing found\n", 15);
         if(last_was_error == 0) {
@@ -110,10 +112,12 @@ static ssize_t device_read_tgt(struct file *file,
     if(found_flag == 1) {
         struct thread_group_cputimer tgt = task->signal->cputimer;
         atomic64_t t = tgt.cputime_atomic.utime;
+        atomic64_t s = tgt.cputime_atomic.stime;
+        atomic64_t ser = tgt.cputime_atomic.sum_exec_runtime;
         const char fields_values_str[BUF_LEN];
-        const char format_answer[] = "Utime: %u\n";
-        size_t string_size = snprintf(NULL, 0, format_answer, t) + 1;
-        snprintf(fields_values_str, string_size, format_answer, t);
+        const char format_answer[] = "Utime: %u, stime: %u, sum exec runtime: %u\n";
+        size_t string_size = snprintf(NULL, 0, format_answer, t, s, ser) + 1;
+        snprintf(fields_values_str, string_size, format_answer, t, s, ser);
         copy_to_user(buffer, fields_values_str, string_size);
         read_status = string_size;
     }
