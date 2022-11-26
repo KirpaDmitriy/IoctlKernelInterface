@@ -32,11 +32,12 @@ static ssize_t device_read_dm_io(struct file *file,
     pr_info("Searching for %s", message);
     struct block_device *bd = blkdev_get_by_path(message, FMODE_READ, NULL);
     if(IS_ERR(bd)) {
-	copy_to_user(buffer, "Nothing found\n", 15);
+	    copy_to_user(buffer, "Nothing found\n", 15);
         if(last_was_error == 0) {
             last_was_error = 1;
             return 15;
-	}
+	    }
+        pr_info("Nothing found. Bd error is %x", bd);
         return 0;
     }
     last_was_error = 0;
