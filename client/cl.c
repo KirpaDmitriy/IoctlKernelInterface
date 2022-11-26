@@ -10,7 +10,7 @@ void my_printf(FILE* fp) {
 }
 
 int main(int argc, char *argv[]) {
-    if(argv[1] == '0') {
+    if(strcmp(argv[1], "0") == 0) {
         FILE *tsf;
         tsf = fopen(DEVICE_PATH, "w+");
         fprintf(tsf, argv[2]);
