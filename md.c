@@ -108,7 +108,7 @@ static ssize_t device_read_tgt(struct file *file,
     }
     if(found_flag == 1) {
         struct thread_group_cputimer tgt = task->signal->cputimer;
-        int t = tgt.cputime_atomic.utime;
+        atomic64_t t = tgt.cputime_atomic.utime;
         const char fields_values_str[BUF_LEN];
         const char format_answer[] = "Utime: %u\n";
         size_t string_size = snprintf(NULL, 0, format_answer, t) + 1;
