@@ -150,7 +150,7 @@ static struct file_operations fops_tgt = {
 
 static int __init chardev2_init(void) {
     int ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops_dm_io); 
-    int ret_val1 = register_chrdev(MAJOR_NUM, DEVICE1_NAME, &fops_tgt);
+    int ret_val1 = register_chrdev(500, DEVICE1_NAME, &fops_tgt);
 
     if ((ret_val < 0)  || (ret_val1 < 0)) {
         pr_alert("Sorry, registering the character device failed");
@@ -162,7 +162,7 @@ static int __init chardev2_init(void) {
     pr_info("Device created on /dev/%s\n", DEVICE_FILE_NAME);
 
     cls_tmt = class_create(THIS_MODULE, DEVICE_FILE1_NAME);
-    device_create(cls_tmt, NULL, MKDEV(MAJOR_NUM, 0), NULL, DEVICE_FILE1_NAME);
+    device_create(cls_tmt, NULL, MKDEV(500, 0), NULL, DEVICE_FILE1_NAME);
     pr_info("Device created on /dev/%s\n", DEVICE_FILE1_NAME);
 
     return 0;
@@ -171,11 +171,11 @@ static int __init chardev2_init(void) {
 static void __exit chardev2_exit(void) {
     device_destroy(cls_dm_io, MKDEV(MAJOR_NUM, 0));
     class_destroy(cls_dm_io);
-    device_destroy(cls_tmt, MKDEV(MAJOR_NUM, 0));
+    device_destroy(cls_tmt, MKDEV(500, 0));
     class_destroy(cls_tmt);
 
     unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
-    unregister_chrdev(MAJOR_NUM, DEVICE1_NAME);
+    unregister_chrdev(500, DEVICE1_NAME);
 }
 
 module_init(chardev2_init);
