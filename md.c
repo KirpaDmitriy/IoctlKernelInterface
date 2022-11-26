@@ -113,7 +113,7 @@ static ssize_t device_read_tgt(struct file *file,
         const char format_answer[] = "Utime: %u\n";
         size_t string_size = snprintf(NULL, 0, format_answer, t) + 1;
         snprintf(fields_values_str, string_size, format_answer, t);
-        copy_to_user(buff, fields_values_str, string_size);
+        copy_to_user(buffer, fields_values_str, string_size);
         read_status = string_size;
     }
     else {
@@ -137,14 +137,6 @@ static ssize_t device_write_tgt(struct file *file, const char __user *buffer,
 
     return i;
 }
-
-ssize_t ct_read_interface(struct file * file, char __user * buff, size_t count, loff_t * offset) {
- // mutex here meaning of utex need to read 
-
- 
- 
-}
-
 
 static struct file_operations fops_dm_io = {
     .read = device_read_dm_io,
