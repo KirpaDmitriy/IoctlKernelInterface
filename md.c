@@ -30,7 +30,8 @@ static ssize_t device_read_dm_io(struct file *file,
     int bytes_read = 0;
     static int last_was_error = 0;
     pr_info("Searching for %s", message);
-    struct block_device *bd = blkdev_get_by_path(message, FMODE_READ, NULL);
+    struct block_device *bd = blkdev_get_by_path(message, FMODE_READ | FMODE_WRITE, NULL);
+    if(last_was_error == 1) last_was_error = 0;
     if(IS_ERR(bd)) {
 	    copy_to_user(buffer, "Nothing found\n", 15);
         if(last_was_error == 0) {
@@ -40,7 +41,6 @@ static ssize_t device_read_dm_io(struct file *file,
         pr_info("Nothing found. Bd error is %x", bd);
         return 0;
     }
-    last_was_error = 0;
     sector_t str_sec = bd->bd_start_sect;
     sector_t n_sec = (sector_t) (bd->bd_inode->i_size >> SECTOR_SHIFT);
 
