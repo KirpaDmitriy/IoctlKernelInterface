@@ -115,7 +115,7 @@ static ssize_t device_read_tgt(struct file *file,
         atomic64_t s = tgt.cputime_atomic.stime;
         atomic64_t ser = tgt.cputime_atomic.sum_exec_runtime;
         const char fields_values_str[BUF_LEN];
-        const char format_answer[] = "Utime: %u, stime: %u, sum exec runtime: %u\n";
+        const char format_answer[] = "Utime: %i, stime: %i, sum exec runtime: %i\n";
         size_t string_size = snprintf(NULL, 0, format_answer, t, s, ser) + 1;
         snprintf(fields_values_str, string_size, format_answer, t, s, ser);
         copy_to_user(buffer, fields_values_str, string_size);
