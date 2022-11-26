@@ -117,7 +117,7 @@ static ssize_t device_read_tgt(struct file *file,
         read_status = string_size;
     }
     else {
-        copy_to_user(buff, "Nothing found\n", 15);
+        copy_to_user(buffer, "Nothing found\n", 15);
         read_status = 15;
     }
     return read_status;
