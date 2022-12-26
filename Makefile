@@ -1,12 +1,12 @@
 CONFIG_MODULE_SIG=n
 
-obj-m += md.o
+obj-m += laba.o
 
 PWD := $(CURDIR)
 BUILDDIR := /lib/modules/$(shell uname -r)/build
 
 all:
-	make -C $(BUILDDIR) M=$(PWD) modules
+  make -C $(BUILDDIR) M=$(PWD) modules
 
 clean:
-	make -C $(BUILDDIR) M=$(PWD) clean
+  make -C $(BUILDDIR) M=$(PWD) clean
